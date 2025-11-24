@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: telegram-calendar-bot
+    env: python
+    region: frankfurt
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: python bot_simple.py
+    envVars:
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: TELEGRAM_USER_ID
+        sync: false
+      - key: CALCOM_API_KEY
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: CALCOM_API_URL
+        value: https://api.cal.com/v1
+      - key: BOT_NAME
+        value: Calendar Assistant Bot
