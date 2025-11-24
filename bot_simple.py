@@ -27,6 +27,28 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Admin-only button messages (calendar, task, note features) - English and Persian
+ADMIN_ONLY_BUTTONS = [
+    "➕ Add Event", "➕ رویداد جدید",
+    "📅 Upcoming", "📅 رویدادهای آینده",
+    "📋 Today", "📋 امروز",
+    "🔍 Search", "🔍 جستجو",
+    "✏️ Edit Event", "✏️ ویرایش",
+    "🗑️ Delete Event", "🗑️ حذف رویداد",
+    "✅ Add Task", "✅ وظیفه جدید",
+    "📝 My Tasks", "📝 وظایف من",
+    "📒 Add Note", "📒 یادداشت جدید",
+    "📚 My Notes", "📚 یادداشت‌های من"
+]
+
+# Admin-only AI actions
+ADMIN_ONLY_ACTIONS = ['create_event', 'list_events', 'get_date_events', 'search_events', 'update_event', 'delete_event']
+
+
+def is_admin_user(user_id: int) -> bool:
+    """Check if the user is the admin (TELEGRAM_USER_ID)"""
+    return user_id == TELEGRAM_USER_ID
+
 
 class TelegramBot:
     """Telegram bot handler with AI integration"""
@@ -54,16 +76,25 @@ class TelegramBot:
         self.app.add_handler(CallbackQueryHandler(self.handle_callback))
         self.app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, self.handle_message))
     
-    def get_main_menu_keyboard(self, lang='en'):
-        """Generate main menu keyboard"""
-        keyboard = [
-            [get_text(lang, 'btn_add_event'), get_text(lang, 'btn_upcoming')],
-            [get_text(lang, 'btn_today'), get_text(lang, 'btn_search')],
-            [get_text(lang, 'btn_add_task'), get_text(lang, 'btn_list_tasks')],
-            [get_text(lang, 'btn_add_note'), get_text(lang, 'btn_list_notes')],
-            [get_text(lang, 'btn_edit'), get_text(lang, 'btn_delete')],
-            [get_text(lang, 'btn_language')]
-        ]
+    def get_main_menu_keyboard(self, lang='en', user_id=None):
+        """Generate main menu keyboard - full menu for admin, chat-only for others"""
+        if user_id is not None and is_admin_user(user_id):
+            # Full menu for admin user
+            keyboard = [
+                [get_text(lang, 'btn_add_event'), get_text(lang, 'btn_upcoming')],
+                [get_text(lang, 'btn_today'), get_text(lang, 'btn_search')],
+                [get_text(lang, 'btn_add_task'), get_text(lang, 'btn_list_tasks')],
+                [get_text(lang, 'btn_add_note'), get_text(lang, 'btn_list_notes')],
+                [get_text(lang, 'btn_edit'), get_text(lang, 'btn_delete')],
+                [get_text(lang, 'btn_chat')],
+                [get_text(lang, 'btn_language')]
+            ]
+        else:
+            # Chat-only menu for non-admin users
+            keyboard = [
+                [get_text(lang, 'btn_chat')],
+                [get_text(lang, 'btn_language')]
+            ]
         return ReplyKeyboardMarkup(keyboard, resize_keyboard=True, one_time_keyboard=False)
     
     async def start_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -76,12 +107,14 @@ class TelegramBot:
         
         await update.message.reply_text(
             welcome_message,
-            reply_markup=self.get_main_menu_keyboard(lang)
+            reply_markup=self.get_main_menu_keyboard(lang, user_id)
         )
         logger.info(f"User {user_id} started the bot")
     
     async def help_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle /help command"""
+        user_id = update.effective_user.id
+        lang = get_user_language(user_id, context.user_data)
         help_message = """
 📖 *Help & Commands*
 
@@ -104,7 +137,7 @@ Type /menu anytime to show the main menu.
         await update.message.reply_text(
             help_message,
             parse_mode='Markdown',
-            reply_markup=self.get_main_menu_keyboard()
+            reply_markup=self.get_main_menu_keyboard(lang, user_id)
         )
     
     async def handle_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -115,6 +148,14 @@ Type /menu anytime to show the main menu.
         logger.info(f"Received message from {user_id}: {user_message}")
         
         lang = get_user_language(user_id, context.user_data)
+        
+        # Check if non-admin user is trying to access admin-only features
+        if user_message in ADMIN_ONLY_BUTTONS and not is_admin_user(user_id):
+            await update.message.reply_text(
+                get_text(lang, 'access_denied'),
+                reply_markup=self.get_main_menu_keyboard(lang, user_id)
+            )
+            return
         
         # Handle keyboard button presses (English and Persian)
         if user_message in ["➕ Add Event", "➕ رویداد جدید"]:
@@ -150,6 +191,13 @@ Type /menu anytime to show the main menu.
         elif user_message in ["📚 My Notes", "📚 یادداشت‌های من"]:
             await self.handle_list_notes(update, context)
             return
+        elif user_message in ["💬 Chat with Assistant", "💬 چت با دستیار"]:
+            # Chat mode - available to all users
+            await update.message.reply_text(
+                get_text(lang, 'chat_ready'),
+                reply_markup=self.get_main_menu_keyboard(lang, user_id)
+            )
+            return
         
         # Check if we're in a flow
         if context.user_data.get('flow'):
@@ -167,12 +215,20 @@ Type /menu anytime to show the main menu.
             
             logger.info(f"AI Analysis - Action: {action}, Params: {params}")
             
+            # Check if non-admin user is trying to access admin-only AI actions
+            if action in ADMIN_ONLY_ACTIONS and not is_admin_user(user_id):
+                await update.message.reply_text(
+                    get_text(lang, 'access_denied'),
+                    reply_markup=self.get_main_menu_keyboard(lang, user_id)
+                )
+                return
+            
             # Handle different actions
             if action == 'create_event':
                 if not self.calendar_enabled:
                     await update.message.reply_text(
                         "❌ Calendar features are disabled. Please add CALCOM_API_KEY to your .env file and restart the bot.",
-                        reply_markup=self.get_main_menu_keyboard()
+                        reply_markup=self.get_main_menu_keyboard(lang, user_id)
                     )
                     return
                 await self.handle_add_event(update, context, params.get('title', ''))
@@ -193,7 +249,7 @@ Type /menu anytime to show the main menu.
                         response = f"No events scheduled for {date}."
                 else:
                     response = "Please specify a date."
-                await update.message.reply_text(response, reply_markup=self.get_main_menu_keyboard())
+                await update.message.reply_text(response, reply_markup=self.get_main_menu_keyboard(lang, user_id))
                 return
             
             elif action == 'search_events':
@@ -208,33 +264,35 @@ Type /menu anytime to show the main menu.
                 else:
                     await self.handle_search_request(update, context)
                     return
-                await update.message.reply_text(response, reply_markup=self.get_main_menu_keyboard())
+                await update.message.reply_text(response, reply_markup=self.get_main_menu_keyboard(lang, user_id))
                 return
             
             elif action == 'general_chat':
                 response = params.get('response_text', '')
                 if not response:
                     response = self.ai_agent.generate_response(user_message)
-                await update.message.reply_text(response, reply_markup=self.get_main_menu_keyboard())
+                await update.message.reply_text(response, reply_markup=self.get_main_menu_keyboard(lang, user_id))
                 return
             
             else:
                 response = self.ai_agent.generate_response(user_message)
-                await update.message.reply_text(response, reply_markup=self.get_main_menu_keyboard())
+                await update.message.reply_text(response, reply_markup=self.get_main_menu_keyboard(lang, user_id))
         
         except Exception as e:
             logger.error(f"Error handling message: {e}", exc_info=True)
             await update.message.reply_text(
                 "I apologize, but I encountered an error processing your request. Could you please try again?",
-                reply_markup=self.get_main_menu_keyboard()
+                reply_markup=self.get_main_menu_keyboard(lang, user_id)
             )
     
     async def handle_add_event(self, update: Update, context: ContextTypes.DEFAULT_TYPE, title: str = ""):
         """Start event creation flow with calendar picker"""
+        user_id = update.effective_user.id
+        lang = get_user_language(user_id, context.user_data)
         if not self.calendar_enabled:
             await update.message.reply_text(
                 "❌ Calendar features are disabled.",
-                reply_markup=self.get_main_menu_keyboard()
+                reply_markup=self.get_main_menu_keyboard(lang, user_id)
             )
             return
         
@@ -252,10 +310,12 @@ Type /menu anytime to show the main menu.
     
     async def handle_upcoming(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Show upcoming events"""
+        user_id = update.effective_user.id
+        lang = get_user_language(user_id, context.user_data)
         if not self.calendar_enabled:
             await update.message.reply_text(
                 "❌ Calendar features are disabled.",
-                reply_markup=self.get_main_menu_keyboard()
+                reply_markup=self.get_main_menu_keyboard(lang, user_id)
             )
             return
         
@@ -266,14 +326,16 @@ Type /menu anytime to show the main menu.
         else:
             response = "You have no upcoming events. Your schedule is clear! ✨"
         
-        await update.message.reply_text(response, reply_markup=self.get_main_menu_keyboard())
+        await update.message.reply_text(response, reply_markup=self.get_main_menu_keyboard(lang, user_id))
     
     async def handle_today(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Show today's events"""
+        user_id = update.effective_user.id
+        lang = get_user_language(user_id, context.user_data)
         if not self.calendar_enabled:
             await update.message.reply_text(
                 "❌ Calendar features are disabled.",
-                reply_markup=self.get_main_menu_keyboard()
+                reply_markup=self.get_main_menu_keyboard(lang, user_id)
             )
             return
         
@@ -286,7 +348,7 @@ Type /menu anytime to show the main menu.
         else:
             response = f"No events scheduled for today ({today.strftime('%B %d, %Y')}). Enjoy your free day! 🌟"
         
-        await update.message.reply_text(response, reply_markup=self.get_main_menu_keyboard())
+        await update.message.reply_text(response, reply_markup=self.get_main_menu_keyboard(lang, user_id))
     
     async def handle_search_request(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Request search query from user"""
@@ -306,10 +368,12 @@ Type /menu anytime to show the main menu.
     
     async def handle_delete_request(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Show delete options with inline buttons"""
+        user_id = update.effective_user.id
+        lang = get_user_language(user_id, context.user_data)
         if not self.calendar_enabled:
             await update.message.reply_text(
                 "❌ Calendar features are disabled.",
-                reply_markup=self.get_main_menu_keyboard()
+                reply_markup=self.get_main_menu_keyboard(lang, user_id)
             )
             return
         
@@ -317,7 +381,7 @@ Type /menu anytime to show the main menu.
         if not events:
             await update.message.reply_text(
                 "You have no upcoming events to delete.",
-                reply_markup=self.get_main_menu_keyboard()
+                reply_markup=self.get_main_menu_keyboard(lang, user_id)
             )
             return
         
@@ -341,11 +405,13 @@ Type /menu anytime to show the main menu.
     
     async def handle_flow(self, update: Update, context: ContextTypes.DEFAULT_TYPE, user_message: str):
         """Handle ongoing user flows"""
+        user_id = update.effective_user.id
+        lang = get_user_language(user_id, context.user_data)
         if user_message == "❌ Cancel":
             context.user_data.clear()
             await update.message.reply_text(
                 "❌ Cancelled.",
-                reply_markup=self.get_main_menu_keyboard()
+                reply_markup=self.get_main_menu_keyboard(lang, user_id)
             )
             return
         
@@ -370,13 +436,15 @@ Type /menu anytime to show the main menu.
     
     async def handle_create_event_with_title(self, update: Update, context: ContextTypes.DEFAULT_TYPE, title: str):
         """Create event with selected date/time and user-provided title"""
+        user_id = update.effective_user.id
+        lang = get_user_language(user_id, context.user_data)
         event_data = context.user_data.get('event_data', {})
         start_time = event_data.get('start_time')
         
         if not start_time:
             await update.message.reply_text(
                 "❌ Error: No date/time selected. Please try again.",
-                reply_markup=self.get_main_menu_keyboard()
+                reply_markup=self.get_main_menu_keyboard(lang, user_id)
             )
             context.user_data.clear()
             return
@@ -406,10 +474,12 @@ Type /menu anytime to show the main menu.
             response = f"❌ Failed to create event: {result.get('error')}"
         
         context.user_data.clear()
-        await update.message.reply_text(response, reply_markup=self.get_main_menu_keyboard())
+        await update.message.reply_text(response, reply_markup=self.get_main_menu_keyboard(lang, user_id))
     
     async def handle_create_event_flow(self, update: Update, context: ContextTypes.DEFAULT_TYPE, user_message: str):
         """Handle event creation flow"""
+        user_id = update.effective_user.id
+        lang = get_user_language(user_id, context.user_data)
         event_data = context.user_data.get('event_data', {})
         
         # Step 1: Get title
@@ -493,7 +563,7 @@ Type /menu anytime to show the main menu.
                     response = f"❌ Failed to create event: {result.get('error')}"
                 
                 context.user_data.clear()
-                await update.message.reply_text(response, reply_markup=self.get_main_menu_keyboard())
+                await update.message.reply_text(response, reply_markup=self.get_main_menu_keyboard(lang, user_id))
                 
             except Exception as e:
                 logger.error(f"Error parsing time: {e}")
@@ -505,6 +575,8 @@ Type /menu anytime to show the main menu.
     
     async def handle_search_flow(self, update: Update, context: ContextTypes.DEFAULT_TYPE, user_message: str):
         """Handle search flow"""
+        user_id = update.effective_user.id
+        lang = get_user_language(user_id, context.user_data)
         events = self.calendar_manager.search_events(user_message)
         if events:
             response = f"🔍 Found events matching '{user_message}':\n\n"
@@ -513,10 +585,12 @@ Type /menu anytime to show the main menu.
             response = f"No events found matching '{user_message}'."
         
         context.user_data.clear()
-        await update.message.reply_text(response, reply_markup=self.get_main_menu_keyboard())
+        await update.message.reply_text(response, reply_markup=self.get_main_menu_keyboard(lang, user_id))
     
     async def handle_delete_flow(self, update: Update, context: ContextTypes.DEFAULT_TYPE, user_message: str):
         """Handle delete flow"""
+        user_id = update.effective_user.id
+        lang = get_user_language(user_id, context.user_data)
         try:
             event_num = int(user_message) - 1
             events_list = context.user_data.get('events_list', [])
@@ -535,7 +609,7 @@ Type /menu anytime to show the main menu.
                 response = "❌ Invalid event number. Please try again."
             
             context.user_data.clear()
-            await update.message.reply_text(response, reply_markup=self.get_main_menu_keyboard())
+            await update.message.reply_text(response, reply_markup=self.get_main_menu_keyboard(lang, user_id))
             
         except ValueError:
             await update.message.reply_text(
@@ -545,10 +619,11 @@ Type /menu anytime to show the main menu.
     
     async def handle_edit_flow(self, update: Update, context: ContextTypes.DEFAULT_TYPE, user_message: str):
         """Handle edit flow"""
-        lang = get_user_language(update.effective_user.id, context.user_data)
+        user_id = update.effective_user.id
+        lang = get_user_language(user_id, context.user_data)
         await update.message.reply_text(
             get_text(lang, 'edit_coming_soon'),
-            reply_markup=self.get_main_menu_keyboard(lang)
+            reply_markup=self.get_main_menu_keyboard(lang, user_id)
         )
         context.user_data.clear()
     
@@ -590,7 +665,7 @@ Type /menu anytime to show the main menu.
             response = get_text(lang, 'error_occurred')
         
         context.user_data.clear()
-        await update.message.reply_text(response, reply_markup=self.get_main_menu_keyboard(lang))
+        await update.message.reply_text(response, reply_markup=self.get_main_menu_keyboard(lang, user_id))
     
     async def handle_list_tasks(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Show user's tasks"""
@@ -602,7 +677,7 @@ Type /menu anytime to show the main menu.
         if not tasks:
             await update.message.reply_text(
                 get_text(lang, 'no_tasks'),
-                reply_markup=self.get_main_menu_keyboard(lang)
+                reply_markup=self.get_main_menu_keyboard(lang, user_id)
             )
             return
         
@@ -665,7 +740,7 @@ Type /menu anytime to show the main menu.
             response = get_text(lang, 'error_occurred')
         
         context.user_data.clear()
-        await update.message.reply_text(response, reply_markup=self.get_main_menu_keyboard(lang))
+        await update.message.reply_text(response, reply_markup=self.get_main_menu_keyboard(lang, user_id))
     
     async def handle_list_notes(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Show user's notes"""
@@ -677,7 +752,7 @@ Type /menu anytime to show the main menu.
         if not notes:
             await update.message.reply_text(
                 get_text(lang, 'no_notes'),
-                reply_markup=self.get_main_menu_keyboard(lang)
+                reply_markup=self.get_main_menu_keyboard(lang, user_id)
             )
             return
         
@@ -786,7 +861,7 @@ Type /menu anytime to show the main menu.
             )
             await query.message.reply_text(
                 get_text(lang, 'use_menu'),
-                reply_markup=self.get_main_menu_keyboard(lang)
+                reply_markup=self.get_main_menu_keyboard(lang, user_id)
             )
             return
         
@@ -803,7 +878,7 @@ Type /menu anytime to show the main menu.
             )
             await query.message.reply_text(
                 get_text(lang, 'use_menu'),
-                reply_markup=self.get_main_menu_keyboard(lang)
+                reply_markup=self.get_main_menu_keyboard(lang, user_id)
             )
             return
         
@@ -890,13 +965,13 @@ Type /menu anytime to show the main menu.
                 await query.edit_message_text("✅ Event deleted successfully!")
                 await query.message.reply_text(
                     "Use the menu below:",
-                    reply_markup=self.get_main_menu_keyboard(lang)
+                    reply_markup=self.get_main_menu_keyboard(lang, user_id)
                 )
             else:
                 await query.edit_message_text(f"❌ Failed to delete event: {result.get('error')}")
                 await query.message.reply_text(
                     "Use the menu below:",
-                    reply_markup=self.get_main_menu_keyboard(lang)
+                    reply_markup=self.get_main_menu_keyboard(lang, user_id)
                 )
             context.user_data.clear()
             return
@@ -913,7 +988,7 @@ Type /menu anytime to show the main menu.
                 )
                 await query.message.reply_text(
                     get_text(lang, 'use_menu'),
-                    reply_markup=self.get_main_menu_keyboard(lang)
+                    reply_markup=self.get_main_menu_keyboard(lang, user_id)
                 )
             else:
                 await query.edit_message_text(f"❌ {result.get('error')}")
@@ -930,7 +1005,7 @@ Type /menu anytime to show the main menu.
                 )
                 await query.message.reply_text(
                     get_text(lang, 'use_menu'),
-                    reply_markup=self.get_main_menu_keyboard(lang)
+                    reply_markup=self.get_main_menu_keyboard(lang, user_id)
                 )
             else:
                 await query.edit_message_text(f"❌ {result.get('error')}")
@@ -949,7 +1024,7 @@ Type /menu anytime to show the main menu.
                 )
                 await query.message.reply_text(
                     get_text(lang, 'use_menu'),
-                    reply_markup=self.get_main_menu_keyboard(lang)
+                    reply_markup=self.get_main_menu_keyboard(lang, user_id)
                 )
             else:
                 await query.edit_message_text("❌ Note not found")
@@ -966,7 +1041,7 @@ Type /menu anytime to show the main menu.
                 )
                 await query.message.reply_text(
                     get_text(lang, 'use_menu'),
-                    reply_markup=self.get_main_menu_keyboard(lang)
+                    reply_markup=self.get_main_menu_keyboard(lang, user_id)
                 )
             else:
                 await query.edit_message_text(f"❌ {result.get('error')}")
