@@ -17,6 +17,7 @@ from telegram.ext import (
 from ai_agent import AIAgent
 from calendar_manager import CalendarManager
 from config import TELEGRAM_BOT_TOKEN, TELEGRAM_USER_ID, BOT_NAME
+from translations import get_text, get_user_language, set_user_language
 
 # Enable logging
 logging.basicConfig(
@@ -51,37 +52,27 @@ class TelegramBot:
         self.app.add_handler(CallbackQueryHandler(self.handle_callback))
         self.app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, self.handle_message))
     
-    def get_main_menu_keyboard(self):
+    def get_main_menu_keyboard(self, lang='en'):
         """Generate main menu keyboard"""
         keyboard = [
-            ["➕ Add Event", "📅 Upcoming"],
-            ["📋 Today", "🔍 Search"],
-            ["✏️ Edit Event", "🗑️ Delete Event"]
+            [get_text(lang, 'btn_add_event'), get_text(lang, 'btn_upcoming')],
+            [get_text(lang, 'btn_today'), get_text(lang, 'btn_search')],
+            [get_text(lang, 'btn_edit'), get_text(lang, 'btn_delete')],
+            [get_text(lang, 'btn_language')]
         ]
         return ReplyKeyboardMarkup(keyboard, resize_keyboard=True, one_time_keyboard=False)
     
     async def start_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle /start command"""
         user_id = update.effective_user.id
+        lang = get_user_language(user_id, context.user_data)
         
-        calendar_status = "" if self.calendar_enabled else "\n⚠️ Calendar features currently disabled. Please add CALCOM_API_KEY to .env to enable.\n"
-        
-        welcome_message = f"""
-🤖 Welcome to {BOT_NAME}!{calendar_status}
-
-I'm your intelligent calendar and task management assistant. 
-
-Use the buttons below or talk to me naturally!
-
-Examples:
-• "Schedule a meeting tomorrow at 2pm"
-• "What's on my calendar today?"
-• "Show my upcoming events"
-"""
+        calendar_status = "" if self.calendar_enabled else get_text(lang, 'welcome_limited')
+        welcome_message = get_text(lang, 'welcome', bot_name=BOT_NAME, calendar_status=calendar_status)
         
         await update.message.reply_text(
             welcome_message,
-            reply_markup=self.get_main_menu_keyboard()
+            reply_markup=self.get_main_menu_keyboard(lang)
         )
         logger.info(f"User {user_id} started the bot")
     
@@ -119,24 +110,29 @@ Type /menu anytime to show the main menu.
         
         logger.info(f"Received message from {user_id}: {user_message}")
         
-        # Handle keyboard button presses
-        if user_message == "➕ Add Event":
+        lang = get_user_language(user_id, context.user_data)
+        
+        # Handle keyboard button presses (English and Persian)
+        if user_message in ["➕ Add Event", "➕ رویداد جدید"]:
             await self.handle_add_event(update, context)
             return
-        elif user_message == "📅 Upcoming":
+        elif user_message in ["📅 Upcoming", "📅 رویدادهای آینده"]:
             await self.handle_upcoming(update, context)
             return
-        elif user_message == "📋 Today":
+        elif user_message in ["📋 Today", "📋 امروز"]:
             await self.handle_today(update, context)
             return
-        elif user_message == "🔍 Search":
+        elif user_message in ["🔍 Search", "🔍 جستجو"]:
             await self.handle_search_request(update, context)
             return
-        elif user_message == "✏️ Edit Event":
+        elif user_message in ["✏️ Edit Event", "✏️ ویرایش"]:
             await self.handle_edit_request(update, context)
             return
-        elif user_message == "🗑️ Delete Event":
+        elif user_message in ["🗑️ Delete Event", "🗑️ حذف رویداد"]:
             await self.handle_delete_request(update, context)
+            return
+        elif user_message in ["🌐 Language", "🌐 زبان"]:
+            await self.show_language_selection(update, context)
             return
         
         # Check if we're in a flow
@@ -527,11 +523,23 @@ Type /menu anytime to show the main menu.
     
     async def handle_edit_flow(self, update: Update, context: ContextTypes.DEFAULT_TYPE, user_message: str):
         """Handle edit flow"""
+        lang = get_user_language(update.effective_user.id, context.user_data)
         await update.message.reply_text(
-            "✏️ Edit feature coming soon! Use Delete and Add for now.",
-            reply_markup=self.get_main_menu_keyboard()
+            get_text(lang, 'edit_coming_soon'),
+            reply_markup=self.get_main_menu_keyboard(lang)
         )
         context.user_data.clear()
+    
+    async def show_language_selection(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Show language selection menu"""
+        keyboard = [
+            [InlineKeyboardButton("🇬🇧 English", callback_data="lang_en")],
+            [InlineKeyboardButton("🇮🇷 فارسی (Persian)", callback_data="lang_fa")]
+        ]
+        await update.message.reply_text(
+            get_text('en', 'select_language'),
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
     
     def generate_calendar_keyboard(self, year: int, month: int):
         """Generate inline calendar keyboard for date selection"""
@@ -609,6 +617,24 @@ Type /menu anytime to show the main menu.
         await query.answer()
         
         data = query.data
+        user_id = query.from_user.id
+        lang = get_user_language(user_id, context.user_data)
+        
+        # Language selection
+        if data.startswith("lang_"):
+            new_lang = data.replace("lang_", "")
+            set_user_language(context.user_data, new_lang)
+            lang = new_lang
+            
+            await query.edit_message_text(
+                get_text(lang, 'language_changed'),
+                reply_markup=None
+            )
+            await query.message.reply_text(
+                get_text(lang, 'use_menu'),
+                reply_markup=self.get_main_menu_keyboard(lang)
+            )
+            return
         
         # Ignore placeholder buttons
         if data == "cal_ignore":
@@ -618,12 +644,12 @@ Type /menu anytime to show the main menu.
         if data == "cal_cancel":
             context.user_data.clear()
             await query.edit_message_text(
-                "❌ Cancelled.",
+                get_text(lang, 'cancelled'),
                 reply_markup=None
             )
             await query.message.reply_text(
-                "Use the menu buttons below:",
-                reply_markup=self.get_main_menu_keyboard()
+                get_text(lang, 'use_menu'),
+                reply_markup=self.get_main_menu_keyboard(lang)
             )
             return
         
