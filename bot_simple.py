@@ -27,6 +27,23 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Admin-only button messages (calendar, task, note features) - English and Persian
+ADMIN_ONLY_BUTTONS = [
+    "➕ Add Event", "➕ رویداد جدید",
+    "📅 Upcoming", "📅 رویدادهای آینده",
+    "📋 Today", "📋 امروز",
+    "🔍 Search", "🔍 جستجو",
+    "✏️ Edit Event", "✏️ ویرایش",
+    "🗑️ Delete Event", "🗑️ حذف رویداد",
+    "✅ Add Task", "✅ وظیفه جدید",
+    "📝 My Tasks", "📝 وظایف من",
+    "📒 Add Note", "📒 یادداشت جدید",
+    "📚 My Notes", "📚 یادداشت‌های من"
+]
+
+# Admin-only AI actions
+ADMIN_ONLY_ACTIONS = ['create_event', 'list_events', 'get_date_events', 'search_events', 'update_event', 'delete_event']
+
 
 def is_admin_user(user_id: int) -> bool:
     """Check if the user is the admin (TELEGRAM_USER_ID)"""
@@ -132,22 +149,8 @@ Type /menu anytime to show the main menu.
         
         lang = get_user_language(user_id, context.user_data)
         
-        # Define admin-only button messages (calendar, task, note features)
-        admin_only_buttons = [
-            "➕ Add Event", "➕ رویداد جدید",
-            "📅 Upcoming", "📅 رویدادهای آینده",
-            "📋 Today", "📋 امروز",
-            "🔍 Search", "🔍 جستجو",
-            "✏️ Edit Event", "✏️ ویرایش",
-            "🗑️ Delete Event", "🗑️ حذف رویداد",
-            "✅ Add Task", "✅ وظیفه جدید",
-            "📝 My Tasks", "📝 وظایف من",
-            "📒 Add Note", "📒 یادداشت جدید",
-            "📚 My Notes", "📚 یادداشت‌های من"
-        ]
-        
         # Check if non-admin user is trying to access admin-only features
-        if user_message in admin_only_buttons and not is_admin_user(user_id):
+        if user_message in ADMIN_ONLY_BUTTONS and not is_admin_user(user_id):
             await update.message.reply_text(
                 get_text(lang, 'access_denied'),
                 reply_markup=self.get_main_menu_keyboard(lang, user_id)
@@ -212,11 +215,8 @@ Type /menu anytime to show the main menu.
             
             logger.info(f"AI Analysis - Action: {action}, Params: {params}")
             
-            # Define admin-only actions
-            admin_only_actions = ['create_event', 'list_events', 'get_date_events', 'search_events', 'update_event', 'delete_event']
-            
             # Check if non-admin user is trying to access admin-only AI actions
-            if action in admin_only_actions and not is_admin_user(user_id):
+            if action in ADMIN_ONLY_ACTIONS and not is_admin_user(user_id):
                 await update.message.reply_text(
                     get_text(lang, 'access_denied'),
                     reply_markup=self.get_main_menu_keyboard(lang, user_id)
@@ -478,6 +478,8 @@ Type /menu anytime to show the main menu.
     
     async def handle_create_event_flow(self, update: Update, context: ContextTypes.DEFAULT_TYPE, user_message: str):
         """Handle event creation flow"""
+        user_id = update.effective_user.id
+        lang = get_user_language(user_id, context.user_data)
         event_data = context.user_data.get('event_data', {})
         
         # Step 1: Get title
@@ -561,8 +563,6 @@ Type /menu anytime to show the main menu.
                     response = f"❌ Failed to create event: {result.get('error')}"
                 
                 context.user_data.clear()
-                user_id = update.effective_user.id
-                lang = get_user_language(user_id, context.user_data)
                 await update.message.reply_text(response, reply_markup=self.get_main_menu_keyboard(lang, user_id))
                 
             except Exception as e:
