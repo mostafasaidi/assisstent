@@ -16,6 +16,7 @@ from telegram.ext import (
 )
 from ai_agent import AIAgent
 from calendar_manager import CalendarManager
+from task_note_manager import TaskNoteManager
 from config import TELEGRAM_BOT_TOKEN, TELEGRAM_USER_ID, BOT_NAME
 from translations import get_text, get_user_language, set_user_language
 
@@ -33,6 +34,7 @@ class TelegramBot:
     def __init__(self):
         self.ai_agent = AIAgent()
         self.calendar_manager = CalendarManager()
+        self.task_note_manager = TaskNoteManager()
         self.calendar_enabled = self.calendar_manager.is_connected()
         self.app = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
         self.setup_handlers()
@@ -57,6 +59,8 @@ class TelegramBot:
         keyboard = [
             [get_text(lang, 'btn_add_event'), get_text(lang, 'btn_upcoming')],
             [get_text(lang, 'btn_today'), get_text(lang, 'btn_search')],
+            [get_text(lang, 'btn_add_task'), get_text(lang, 'btn_list_tasks')],
+            [get_text(lang, 'btn_add_note'), get_text(lang, 'btn_list_notes')],
             [get_text(lang, 'btn_edit'), get_text(lang, 'btn_delete')],
             [get_text(lang, 'btn_language')]
         ]
@@ -133,6 +137,18 @@ Type /menu anytime to show the main menu.
             return
         elif user_message in ["🌐 Language", "🌐 زبان"]:
             await self.show_language_selection(update, context)
+            return
+        elif user_message in ["✅ Add Task", "✅ وظیفه جدید"]:
+            await self.handle_add_task(update, context)
+            return
+        elif user_message in ["📝 My Tasks", "📝 وظایف من"]:
+            await self.handle_list_tasks(update, context)
+            return
+        elif user_message in ["📒 Add Note", "📒 یادداشت جدید"]:
+            await self.handle_add_note(update, context)
+            return
+        elif user_message in ["📚 My Notes", "📚 یادداشت‌های من"]:
+            await self.handle_list_notes(update, context)
             return
         
         # Check if we're in a flow
@@ -345,6 +361,12 @@ Type /menu anytime to show the main menu.
             await self.handle_delete_flow(update, context, user_message)
         elif flow == 'edit':
             await self.handle_edit_flow(update, context, user_message)
+        elif flow == 'add_task':
+            await self.handle_add_task_flow(update, context, user_message)
+        elif flow == 'add_note_title':
+            await self.handle_add_note_title_flow(update, context, user_message)
+        elif flow == 'add_note_content':
+            await self.handle_add_note_content_flow(update, context, user_message)
     
     async def handle_create_event_with_title(self, update: Update, context: ContextTypes.DEFAULT_TYPE, title: str):
         """Create event with selected date/time and user-provided title"""
@@ -538,6 +560,138 @@ Type /menu anytime to show the main menu.
         ]
         await update.message.reply_text(
             get_text('en', 'select_language'),
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
+    
+    # ===== TASK HANDLERS =====
+    
+    async def handle_add_task(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Start task creation flow"""
+        user_id = update.effective_user.id
+        lang = get_user_language(user_id, context.user_data)
+        
+        context.user_data['flow'] = 'add_task'
+        await update.message.reply_text(
+            get_text(lang, 'add_task_title'),
+            reply_markup=ReplyKeyboardMarkup([[get_text(lang, 'btn_cancel')]], resize_keyboard=True, one_time_keyboard=True)
+        )
+    
+    async def handle_add_task_flow(self, update: Update, context: ContextTypes.DEFAULT_TYPE, user_message: str):
+        """Handle task creation flow"""
+        user_id = update.effective_user.id
+        lang = get_user_language(user_id, context.user_data)
+        
+        # Add the task
+        result = self.task_note_manager.add_task(user_id, user_message)
+        
+        if result['success']:
+            response = get_text(lang, 'task_added', title=user_message)
+        else:
+            response = get_text(lang, 'error_occurred')
+        
+        context.user_data.clear()
+        await update.message.reply_text(response, reply_markup=self.get_main_menu_keyboard(lang))
+    
+    async def handle_list_tasks(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Show user's tasks"""
+        user_id = update.effective_user.id
+        lang = get_user_language(user_id, context.user_data)
+        
+        tasks = self.task_note_manager.get_tasks(user_id, include_completed=False)
+        
+        if not tasks:
+            await update.message.reply_text(
+                get_text(lang, 'no_tasks'),
+                reply_markup=self.get_main_menu_keyboard(lang)
+            )
+            return
+        
+        # Create inline keyboard for tasks
+        keyboard = []
+        for task in tasks:
+            priority_emoji = {'high': '🔴', 'medium': '🟡', 'low': '🟢'}.get(task.get('priority', 'medium'), '⚪')
+            button_text = f"{priority_emoji} {task['title'][:40]}"
+            keyboard.append([
+                InlineKeyboardButton(f"✅ {button_text}", callback_data=f"task_complete_{task['id']}"),
+                InlineKeyboardButton("🗑️", callback_data=f"task_delete_{task['id']}")
+            ])
+        
+        await update.message.reply_text(
+            get_text(lang, 'select_task_action'),
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
+    
+    # ===== NOTE HANDLERS =====
+    
+    async def handle_add_note(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Start note creation flow"""
+        user_id = update.effective_user.id
+        lang = get_user_language(user_id, context.user_data)
+        
+        context.user_data['flow'] = 'add_note_title'
+        context.user_data['note_data'] = {}
+        await update.message.reply_text(
+            get_text(lang, 'add_note_title'),
+            reply_markup=ReplyKeyboardMarkup([[get_text(lang, 'btn_cancel')]], resize_keyboard=True, one_time_keyboard=True)
+        )
+    
+    async def handle_add_note_title_flow(self, update: Update, context: ContextTypes.DEFAULT_TYPE, user_message: str):
+        """Handle note title input"""
+        user_id = update.effective_user.id
+        lang = get_user_language(user_id, context.user_data)
+        
+        context.user_data['note_data']['title'] = user_message
+        context.user_data['flow'] = 'add_note_content'
+        
+        await update.message.reply_text(
+            get_text(lang, 'add_note_content'),
+            reply_markup=ReplyKeyboardMarkup([[get_text(lang, 'btn_cancel')]], resize_keyboard=True, one_time_keyboard=True)
+        )
+    
+    async def handle_add_note_content_flow(self, update: Update, context: ContextTypes.DEFAULT_TYPE, user_message: str):
+        """Handle note content input and create note"""
+        user_id = update.effective_user.id
+        lang = get_user_language(user_id, context.user_data)
+        
+        note_data = context.user_data.get('note_data', {})
+        title = note_data.get('title', 'Untitled')
+        
+        # Add the note
+        result = self.task_note_manager.add_note(user_id, title, user_message)
+        
+        if result['success']:
+            response = get_text(lang, 'note_added', title=title)
+        else:
+            response = get_text(lang, 'error_occurred')
+        
+        context.user_data.clear()
+        await update.message.reply_text(response, reply_markup=self.get_main_menu_keyboard(lang))
+    
+    async def handle_list_notes(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Show user's notes"""
+        user_id = update.effective_user.id
+        lang = get_user_language(user_id, context.user_data)
+        
+        notes = self.task_note_manager.get_notes(user_id)
+        
+        if not notes:
+            await update.message.reply_text(
+                get_text(lang, 'no_notes'),
+                reply_markup=self.get_main_menu_keyboard(lang)
+            )
+            return
+        
+        # Create inline keyboard for notes
+        keyboard = []
+        for note in notes[:20]:  # Limit to 20 notes
+            button_text = f"📒 {note['title'][:40]}"
+            keyboard.append([
+                InlineKeyboardButton(button_text, callback_data=f"note_view_{note['id']}"),
+                InlineKeyboardButton("🗑️", callback_data=f"note_delete_{note['id']}")
+            ])
+        
+        await update.message.reply_text(
+            get_text(lang, 'select_note_action'),
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
     
@@ -736,15 +890,86 @@ Type /menu anytime to show the main menu.
                 await query.edit_message_text("✅ Event deleted successfully!")
                 await query.message.reply_text(
                     "Use the menu below:",
-                    reply_markup=self.get_main_menu_keyboard()
+                    reply_markup=self.get_main_menu_keyboard(lang)
                 )
             else:
                 await query.edit_message_text(f"❌ Failed to delete event: {result.get('error')}")
                 await query.message.reply_text(
                     "Use the menu below:",
-                    reply_markup=self.get_main_menu_keyboard()
+                    reply_markup=self.get_main_menu_keyboard(lang)
                 )
             context.user_data.clear()
+            return
+        
+        # Task actions
+        if data.startswith("task_complete_"):
+            task_id = int(data.replace("task_complete_", ""))
+            result = self.task_note_manager.complete_task(user_id, task_id)
+            
+            if result.get('success'):
+                task = result['task']
+                await query.edit_message_text(
+                    get_text(lang, 'task_completed', title=task['title'])
+                )
+                await query.message.reply_text(
+                    get_text(lang, 'use_menu'),
+                    reply_markup=self.get_main_menu_keyboard(lang)
+                )
+            else:
+                await query.edit_message_text(f"❌ {result.get('error')}")
+            return
+        
+        if data.startswith("task_delete_"):
+            task_id = int(data.replace("task_delete_", ""))
+            result = self.task_note_manager.delete_task(user_id, task_id)
+            
+            if result.get('success'):
+                task = result['task']
+                await query.edit_message_text(
+                    get_text(lang, 'task_deleted', title=task['title'])
+                )
+                await query.message.reply_text(
+                    get_text(lang, 'use_menu'),
+                    reply_markup=self.get_main_menu_keyboard(lang)
+                )
+            else:
+                await query.edit_message_text(f"❌ {result.get('error')}")
+            return
+        
+        # Note actions
+        if data.startswith("note_view_"):
+            note_id = int(data.replace("note_view_", ""))
+            note = self.task_note_manager.get_note(user_id, note_id)
+            
+            if note:
+                created_date = datetime.datetime.fromisoformat(note['created_at']).strftime('%B %d, %Y')
+                content = note.get('content', 'No content')
+                await query.edit_message_text(
+                    get_text(lang, 'note_content', title=note['title'], content=content, date=created_date)
+                )
+                await query.message.reply_text(
+                    get_text(lang, 'use_menu'),
+                    reply_markup=self.get_main_menu_keyboard(lang)
+                )
+            else:
+                await query.edit_message_text("❌ Note not found")
+            return
+        
+        if data.startswith("note_delete_"):
+            note_id = int(data.replace("note_delete_", ""))
+            result = self.task_note_manager.delete_note(user_id, note_id)
+            
+            if result.get('success'):
+                note = result['note']
+                await query.edit_message_text(
+                    get_text(lang, 'note_deleted', title=note['title'])
+                )
+                await query.message.reply_text(
+                    get_text(lang, 'use_menu'),
+                    reply_markup=self.get_main_menu_keyboard(lang)
+                )
+            else:
+                await query.edit_message_text(f"❌ {result.get('error')}")
             return
     
     def run(self):

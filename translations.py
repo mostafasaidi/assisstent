@@ -33,6 +33,10 @@ Examples:
         'btn_delete': '🗑️ Delete Event',
         'btn_cancel': '❌ Cancel',
         'btn_language': '🌐 Language',
+        'btn_add_task': '✅ Add Task',
+        'btn_list_tasks': '📝 My Tasks',
+        'btn_add_note': '📒 Add Note',
+        'btn_list_notes': '📚 My Notes',
         
         # Messages
         'calendar_disabled': '❌ Calendar features are disabled.',
@@ -68,6 +72,25 @@ Examples:
         # Edit
         'edit_coming_soon': '✏️ Edit feature coming soon! Use Delete and Add for now.',
         'enter_edit_name': '✏️ Please enter the name of the event you want to edit:',
+        
+        # Tasks
+        'add_task_title': '✅ Let\'s create a new task!\n\nPlease enter the task title:',
+        'task_added': '✅ Task added successfully!\n\n📌 {title}',
+        'no_tasks': 'You have no tasks yet. Add your first task! 📝',
+        'your_tasks': '📝 Your Tasks:\n\n',
+        'task_completed': '✅ Task marked as completed!\n\n📌 {title}',
+        'task_deleted': '✅ Task deleted successfully!\n\n📌 {title}',
+        'select_task_action': '📝 Select a task action:',
+        
+        # Notes
+        'add_note_title': '📒 Let\'s create a new note!\n\nPlease enter the note title:',
+        'add_note_content': '📝 Now enter the note content:',
+        'note_added': '✅ Note added successfully!\n\n📌 {title}',
+        'no_notes': 'You have no notes yet. Add your first note! 📚',
+        'your_notes': '📚 Your Notes:\n\n',
+        'note_deleted': '✅ Note deleted successfully!\n\n📌 {title}',
+        'note_content': '📒 {title}\n\n{content}\n\n📅 Created: {date}',
+        'select_note_action': '📚 Select a note:',
         
         # Errors
         'error_occurred': 'I apologize, but I encountered an error processing your request. Could you please try again?',
@@ -111,6 +134,10 @@ Examples:
         'btn_delete': '🗑️ حذف رویداد',
         'btn_cancel': '❌ لغو',
         'btn_language': '🌐 زبان',
+        'btn_add_task': '✅ وظیفه جدید',
+        'btn_list_tasks': '📝 وظایف من',
+        'btn_add_note': '📒 یادداشت جدید',
+        'btn_list_notes': '📚 یادداشت‌های من',
         
         # Messages
         'calendar_disabled': '❌ امکانات تقویم غیرفعال است.',
@@ -146,6 +173,25 @@ Examples:
         # Edit
         'edit_coming_soon': '✏️ امکان ویرایش به زودی! فعلاً از حذف و اضافه کردن استفاده کنید.',
         'enter_edit_name': '✏️ لطفاً نام رویدادی که می‌خواهید ویرایش کنید را وارد کنید:',
+        
+        # Tasks
+        'add_task_title': '✅ بیایید یک وظیفه جدید بسازیم!\n\nلطفاً عنوان وظیفه را وارد کنید:',
+        'task_added': '✅ وظیفه با موفقیت اضافه شد!\n\n📌 {title}',
+        'no_tasks': 'شما هنوز وظیفه‌ای ندارید. اولین وظیفه خود را اضافه کنید! 📝',
+        'your_tasks': '📝 وظایف شما:\n\n',
+        'task_completed': '✅ وظیفه به عنوان انجام شده علامت گذاری شد!\n\n📌 {title}',
+        'task_deleted': '✅ وظیفه با موفقیت حذف شد!\n\n📌 {title}',
+        'select_task_action': '📝 یک عملیات وظیفه را انتخاب کنید:',
+        
+        # Notes
+        'add_note_title': '📒 بیایید یک یادداشت جدید بسازیم!\n\nلطفاً عنوان یادداشت را وارد کنید:',
+        'add_note_content': '📝 حالا محتوای یادداشت را وارد کنید:',
+        'note_added': '✅ یادداشت با موفقیت اضافه شد!\n\n📌 {title}',
+        'no_notes': 'شما هنوز یادداشتی ندارید. اولین یادداشت خود را اضافه کنید! 📚',
+        'your_notes': '📚 یادداشت‌های شما:\n\n',
+        'note_deleted': '✅ یادداشت با موفقیت حذف شد!\n\n📌 {title}',
+        'note_content': '📒 {title}\n\n{content}\n\n📅 ایجاد شده: {date}',
+        'select_note_action': '📚 یک یادداشت را انتخاب کنید:',
         
         # Errors
         'error_occurred': 'متأسفم، اما در پردازش درخواست شما خطایی رخ داد. لطفاً دوباره تلاش کنید.',
