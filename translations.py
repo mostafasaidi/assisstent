@@ -37,6 +37,9 @@ Examples:
         'btn_list_tasks': '📝 My Tasks',
         'btn_add_note': '📒 Add Note',
         'btn_list_notes': '📚 My Notes',
+        'btn_chat': '💬 Chat with Assistant',
+        'access_denied': '⛔ Access denied. This feature is only available to the admin user.',
+        'chat_ready': '💬 I\'m ready to chat! Just type your message and I\'ll respond.',
         
         # Messages
         'calendar_disabled': '❌ Calendar features are disabled.',
@@ -138,6 +141,9 @@ Examples:
         'btn_list_tasks': '📝 وظایف من',
         'btn_add_note': '📒 یادداشت جدید',
         'btn_list_notes': '📚 یادداشت‌های من',
+        'btn_chat': '💬 چت با دستیار',
+        'access_denied': '⛔ دسترسی غیرمجاز. این ویژگی فقط برای مدیر در دسترس است.',
+        'chat_ready': '💬 آماده چت هستم! پیام خود را بنویسید و پاسخ خواهم داد.',
         
         # Messages
         'calendar_disabled': '❌ امکانات تقویم غیرفعال است.',
