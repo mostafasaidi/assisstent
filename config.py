@@ -10,6 +10,7 @@ load_dotenv()
 # Telegram Configuration
 TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
 TELEGRAM_USER_ID = int(os.getenv('TELEGRAM_USER_ID', 0))
+ADMIN_USER_ID = TELEGRAM_USER_ID  # Admin has full access to all features
 
 # Groq Configuration
 GROQ_API_KEY = os.getenv('GROQ_API_KEY')

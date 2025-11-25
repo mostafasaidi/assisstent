@@ -17,7 +17,15 @@ Examples:
 • "What's on my calendar today?"
 • "Show my upcoming events"
 """,
+        'welcome_user': """
+🤖 Welcome to {bot_name}!
+
+I'm your intelligent AI assistant. Feel free to chat with me about anything!
+
+Ask me questions, have a conversation, or just say hello! 👋
+""",
         'welcome_limited': "\n⚠️ Calendar features currently disabled. Please add CALCOM_API_KEY to .env to enable.\n",
+        'admin_only': '🔒 This feature is only available for the admin.',
         'help_title': '📖 *Help & Commands*',
         'help_buttons': '*Button Actions:*',
         'help_natural': '*Natural Language:*',
@@ -118,7 +126,15 @@ Examples:
 • "امروز چه برنامه‌ای دارم؟"
 • "رویدادهای آینده رو نشون بده"
 """,
+        'welcome_user': """
+🤖 به {bot_name} خوش آمدید!
+
+من دستیار هوشمند شما هستم. در مورد هر چیزی با من گفتگو کنید!
+
+از من سوال بپرسید، گفتگو کنید، یا فقط سلام کنید! 👋
+""",
         'welcome_limited': "\n⚠️ امکانات تقویم غیرفعال است. لطفاً CALCOM_API_KEY را به .env اضافه کنید.\n",
+        'admin_only': '🔒 این امکان فقط برای مدیر در دسترس است.',
         'help_title': '📖 *راهنما و دستورات*',
         'help_buttons': '*عملکرد دکمه‌ها:*',
         'help_natural': '*زبان طبیعی:*',
